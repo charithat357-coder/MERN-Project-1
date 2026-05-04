@@ -52,7 +52,7 @@ const marksSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Pre-save hook to calculate total marks dynamically
-marksSchema.pre('save', async function(next) {
+marksSchema.pre('save', async function() {
   const m1 = this.mid1 || 0;
   const m2 = this.mid2 || 0;
   const a1 = this.assignment1 || 0;
@@ -69,9 +69,8 @@ marksSchema.pre('save', async function(next) {
     const lowerMid = Math.min(m1, m2);
 
     this.total = Math.round((settings.higherMidWeight * higherMid) + (settings.lowerMidWeight * lowerMid) + a1 + a2);
-    next();
   } catch (err) {
-    next(err);
+    throw err;
   }
 });
 

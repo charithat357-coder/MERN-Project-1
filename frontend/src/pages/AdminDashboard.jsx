@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import api from '../utils/api';
 import { Users, BookOpen, Building, Settings as SettingsIcon, PieChart, Plus, Edit, Trash2, FileText, Download, Search, Filter, UserCircle } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('analytics');
@@ -126,7 +126,7 @@ const AnalyticsView = () => {
     const tableColumn = ["Department", "Average Score", "Pass Rate (%)"];
     const tableRows = graphData.map(d => [d.name, d.average, d.passRate]);
     
-    doc.autoTable({
+    autoTable(doc, {
       startY: 95,
       head: [tableColumn],
       body: tableRows,
@@ -211,12 +211,13 @@ const UsersView = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
+  const [editingUserId, setEditingUserId] = useState(null);
   const [depts, setDepts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('All');
   const [deptFilter, setDeptFilter] = useState('All');
   const [formData, setFormData] = useState({
-    name: '', email: '', password: '', role: 'Student', phone: '', department: '', semester: '', section: '', assignedSubjects: []
+    name: '', email: '', password: '', role: 'Student', phone: '', department: '', semester: '', section: '', assignedSubjects: [], photo: null
   });
   const [allSubjects, setAllSubjects] = useState([]);
 
@@ -239,7 +240,9 @@ const UsersView = () => {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchUsers();
+     
     fetchMetadata();
   }, []);
 
@@ -253,14 +256,38 @@ const UsersView = () => {
     });
   }, [users, searchQuery, roleFilter, deptFilter]);
 
-  const handleAdd = async (e) => {
+  const handleSaveUser = async (e) => {
     e.preventDefault();
     try {
-      await api.post('/admin/users', formData);
+      if (editingUserId) {
+        await api.put(`/admin/users/${editingUserId}`, formData);
+        alert('User updated successfully');
+      } else {
+        await api.post('/admin/users', formData);
+        alert('User added successfully');
+      }
       setShowAdd(false);
+      setEditingUserId(null);
+      setFormData({ name: '', email: '', password: '', role: 'Student', phone: '', department: '', semester: '', section: '', assignedSubjects: [], photo: null });
       fetchUsers();
-      alert('User added successfully');
-    } catch (err) { alert('Failed to add user'); }
+    } catch { alert('Failed to save user'); }
+  };
+
+  const handleEditClick = (user) => {
+    setEditingUserId(user._id);
+    setFormData({
+      name: user.name || '',
+      email: user.email || '',
+      password: '',
+      role: user.role || 'Student',
+      phone: user.phone || '',
+      department: user.department?._id || '',
+      semester: user.semester || '',
+      section: user.section || '',
+      assignedSubjects: user.assignedSubjects?.map(s => s._id) || [],
+      photo: user.photo || null
+    });
+    setShowAdd(true);
   };
 
   if (loading) return <div className="p-10 text-center text-slate-400">Loading directory...</div>;
@@ -281,7 +308,15 @@ const UsersView = () => {
             />
           </div>
           <button 
-            onClick={() => setShowAdd(!showAdd)}
+            onClick={() => {
+              if (showAdd) {
+                setShowAdd(false);
+                setEditingUserId(null);
+                setFormData({ name: '', email: '', password: '', role: 'Student', phone: '', department: '', semester: '', section: '', assignedSubjects: [], photo: null });
+              } else {
+                setShowAdd(true);
+              }
+            }}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-primary/90 transition-all shadow-sm"
           >
             {showAdd ? 'Cancel' : <><Plus size={18} /> Add User</>}
@@ -318,10 +353,10 @@ const UsersView = () => {
       </div>
 
       {showAdd && (
-        <form onSubmit={handleAdd} className="p-6 bg-slate-50 border-b border-slate-100 grid grid-cols-1 md:grid-cols-4 gap-4 animate-in slide-in-from-top duration-200">
+        <form onSubmit={handleSaveUser} className="p-6 bg-slate-50 border-b border-slate-100 grid grid-cols-1 md:grid-cols-4 gap-4 animate-in slide-in-from-top duration-200">
           <input className="p-2 border rounded" placeholder="Full Name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
           <input className="p-2 border rounded" placeholder="Email" type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required />
-          <input className="p-2 border rounded" placeholder="Password" type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required />
+          <input className="p-2 border rounded" placeholder={editingUserId ? "Password (leave blank to keep)" : "Password"} type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required={!editingUserId} />
           <select className="p-2 border rounded" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})}>
             <option value="Admin">Admin</option>
             <option value="HOD">HOD</option>
@@ -335,6 +370,22 @@ const UsersView = () => {
           </select>
           <input className="p-2 border rounded" placeholder="Semester" type="number" value={formData.semester} onChange={e => setFormData({...formData, semester: e.target.value})} />
           <input className="p-2 border rounded" placeholder="Section" value={formData.section} onChange={e => setFormData({...formData, section: e.target.value})} />
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-slate-400 uppercase">User Photo</label>
+            <input 
+              type="file" 
+              accept="image/*" 
+              className="text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+              onChange={(e) => {
+                const file = e.target.files[0];
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onloadend = () => setFormData({ ...formData, photo: reader.result });
+                  reader.readAsDataURL(file);
+                }
+              }}
+            />
+          </div>
           
           {formData.role === 'Faculty' && (
             <div className="md:col-span-4 bg-white p-4 rounded-xl border border-slate-200">
@@ -361,7 +412,9 @@ const UsersView = () => {
             </div>
           )}
           
-          <button className="md:col-span-4 p-3 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-700 transition-colors">Create Account</button>
+          <button className="md:col-span-4 p-3 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-700 transition-colors">
+            {editingUserId ? 'Update Account' : 'Create Account'}
+          </button>
         </form>
       )}
 
@@ -414,6 +467,7 @@ const UsersView = () => {
                 </td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" onClick={() => handleEditClick(user)}><Edit size={16} /></button>
                     <button className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" onClick={async () => { if(window.confirm('Delete?')) { await api.delete(`/admin/users/${user._id}`); fetchUsers(); } }}><Trash2 size={16} /></button>
                   </div>
                 </td>
@@ -447,16 +501,19 @@ const AcademicView = () => {
     } catch (err) { console.error(err); }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchData();
+  }, []);
 
   const addDept = async (e) => {
     e.preventDefault();
-    try { await api.post('/admin/departments', deptForm); setShowAddDept(false); fetchData(); } catch (err) { alert('Failed'); }
+    try { await api.post('/admin/departments', deptForm); setShowAddDept(false); fetchData(); } catch { alert('Failed'); }
   };
 
   const addSub = async (e) => {
     e.preventDefault();
-    try { await api.post('/admin/subjects', subForm); setShowAddSub(false); fetchData(); } catch (err) { alert('Failed'); }
+    try { await api.post('/admin/subjects', subForm); setShowAddSub(false); fetchData(); } catch { alert('Failed'); }
   };
 
   return (
@@ -540,7 +597,7 @@ const SettingsView = () => {
     try {
       await api.put('/settings', settings);
       alert('Institutional settings updated!');
-    } catch (err) { alert('Update failed'); }
+    } catch { alert('Update failed'); }
     finally { setSaving(false); }
   };
 

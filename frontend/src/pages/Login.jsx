@@ -8,11 +8,13 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
+  const [captcha, setCaptcha] = useState('');
+  const [captchaQuestion, setCaptchaQuestion] = useState('');
   const [role, setRole] = useState('Student');
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(false);
-  const [loginMode, setLoginMode] = useState('password'); // 'password', 'otp-request', 'otp-verify'
+  const [loginMode, setLoginMode] = useState('password'); // 'password', 'otp-verify'
   
   const login = useAuthStore((state) => state.login);
   const navigate = useNavigate();
@@ -33,24 +35,17 @@ const Login = () => {
     setError(''); setMsg(''); setLoading(true);
     try {
       const response = await api.post('/auth/login', { email, password, role });
-      const { token, ...userData } = response.data;
-      handleLoginSuccess(userData, token);
+      
+      if (response.data.requireOtp) {
+        setMsg(response.data.message);
+        setCaptchaQuestion(response.data.captchaQuestion);
+        setLoginMode('otp-verify');
+      } else {
+        const { token, ...userData } = response.data;
+        handleLoginSuccess(userData, token);
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to login');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRequestOTP = async (e) => {
-    e.preventDefault();
-    setError(''); setMsg(''); setLoading(true);
-    try {
-      const response = await api.post('/auth/send-otp', { email, role });
-      setMsg(response.data.message);
-      setLoginMode('otp-verify');
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to send OTP');
     } finally {
       setLoading(false);
     }
@@ -60,11 +55,11 @@ const Login = () => {
     e.preventDefault();
     setError(''); setMsg(''); setLoading(true);
     try {
-      const response = await api.post('/auth/verify-otp', { email, otp, role });
+      const response = await api.post('/auth/verify-otp', { email, otp, captcha, role });
       const { token, ...userData } = response.data;
       handleLoginSuccess(userData, token);
     } catch (err) {
-      setError(err.response?.data?.message || 'Invalid OTP');
+      setError(err.response?.data?.message || 'Invalid OTP or Captcha');
     } finally {
       setLoading(false);
     }
@@ -84,8 +79,7 @@ const Login = () => {
         </div>
         
         <form className="mt-8 space-y-6" onSubmit={
-          loginMode === 'password' ? handlePasswordLogin : 
-          loginMode === 'otp-request' ? handleRequestOTP : handleVerifyOTP
+          loginMode === 'password' ? handlePasswordLogin : handleVerifyOTP
         }>
           {error && <div className="bg-red-50 text-red-500 p-3 rounded-md text-sm text-center">{error}</div>}
           {msg && <div className="bg-green-50 text-green-600 p-3 rounded-md text-sm text-center">{msg}</div>}
@@ -137,17 +131,32 @@ const Login = () => {
             )}
 
             {loginMode === 'otp-verify' && (
-              <div>
-                <label htmlFor="otp" className="block text-sm font-medium text-slate-700 mb-1">Enter 6-digit OTP</label>
-                <input
-                  id="otp"
-                  name="otp"
-                  type="text"
-                  required
-                  className="block w-full px-3 py-3 border border-slate-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary sm:text-sm tracking-widest text-center text-lg"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                />
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="otp" className="block text-sm font-medium text-slate-700 mb-1">Enter 6-digit OTP</label>
+                  <input
+                    id="otp"
+                    name="otp"
+                    type="text"
+                    required
+                    className="block w-full px-3 py-3 border border-slate-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary sm:text-sm tracking-widest text-center text-lg"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="captcha" className="block text-sm font-medium text-slate-700 mb-1">Security Question: {captchaQuestion}</label>
+                  <input
+                    id="captcha"
+                    name="captcha"
+                    type="text"
+                    required
+                    placeholder="Enter answer"
+                    className="block w-full px-3 py-3 border border-slate-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                    value={captcha}
+                    onChange={(e) => setCaptcha(e.target.value)}
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -159,20 +168,22 @@ const Login = () => {
               className="w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors disabled:opacity-70"
             >
               {loading ? 'Processing...' : 
-               loginMode === 'password' ? 'Sign in with Password' : 
-               loginMode === 'otp-request' ? 'Send OTP' : 'Verify & Login'}
+               loginMode === 'password' ? 'Sign in with Password' : 'Verify & Login'}
             </button>
             
-            <button
-              type="button"
-              onClick={() => {
-                setLoginMode(loginMode === 'password' ? 'otp-request' : 'password');
-                setError(''); setMsg('');
-              }}
-              className="w-full text-sm text-primary font-medium hover:underline"
-            >
-              {loginMode === 'password' ? 'Login with OTP instead' : 'Login with Password instead'}
-            </button>
+            {loginMode === 'otp-verify' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setLoginMode('password');
+                  setError(''); setMsg('');
+                  setOtp(''); setCaptcha('');
+                }}
+                className="w-full text-sm text-primary font-medium hover:underline"
+              >
+                Cancel and return to Email/Password
+              </button>
+            )}
           </div>
         </form>
       </div>

@@ -40,6 +40,7 @@ const createUser = async (req, res) => {
       semester: req.body.semester,
       section: req.body.section,
       studentId,
+      photo: req.body.photo,
       assignedSubjects: req.body.assignedSubjects || []
     });
 
@@ -94,6 +95,7 @@ const updateUser = async (req, res) => {
     user.department = req.body.department || user.department;
     user.semester = req.body.semester !== undefined ? req.body.semester : user.semester;
     user.section = req.body.section !== undefined ? req.body.section : user.section;
+    user.photo = req.body.photo !== undefined ? req.body.photo : user.photo;
     user.assignedSubjects = req.body.assignedSubjects || user.assignedSubjects;
     
     if (req.body.password) {

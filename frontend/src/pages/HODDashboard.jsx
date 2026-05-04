@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import api from '../utils/api';
 import { CheckCircle, XCircle, Bell, FileText, PieChart, Users, BookOpen, Download, Filter } from 'lucide-react';
 import { PieChart as RePie, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const HODDashboard = () => {
   const [activeTab, setActiveTab] = useState('review');
@@ -27,6 +27,7 @@ const HODDashboard = () => {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
   }, []);
 
@@ -35,7 +36,7 @@ const HODDashboard = () => {
       await api.put('/hod/review-marks', { markIds, status });
       alert(`Marks ${status} successfully!`);
       fetchData();
-    } catch (error) {
+    } catch {
       alert('Action failed');
     }
   };
@@ -55,8 +56,10 @@ const HODDashboard = () => {
 
   useEffect(() => {
     if (activeTab === 'review') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       handleMarkAsSeen();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, pendingMarks.length]);
 
   if (loading) return <div className="p-10 text-center text-slate-400">Loading Dashboard...</div>;
@@ -237,7 +240,7 @@ const ReportsView = () => {
     doc.setFontSize(10);
     doc.text(`Department results and faculty compliance report.`, 14, 30);
     
-    doc.autoTable({
+    autoTable(doc, {
       startY: 40,
       head: [['Subject', 'Faculty', 'Avg Marks', 'Status']],
       body: [

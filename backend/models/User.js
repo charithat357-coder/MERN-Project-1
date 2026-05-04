@@ -36,6 +36,9 @@ const userSchema = new mongoose.Schema({
   studentId: {
     type: String,
   },
+  photo: {
+    type: String, // Base64 or URL
+  },
   otp: {
     type: String,
   },
@@ -45,13 +48,19 @@ const userSchema = new mongoose.Schema({
   assignedSubjects: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Subject'
-  }]
+  }],
+  captchaAnswer: {
+    type: String,
+  },
+  captchaExpires: {
+    type: Date,
+  }
 }, { timestamps: true });
 
 // Hash password before saving
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) {
-    next();
+    return next();
   }
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);

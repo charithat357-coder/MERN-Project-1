@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getPendingMarks, reviewMarks, getDeptAnalytics } = require('../controllers/hodController');
+const { getPendingMarks, reviewMarks, getDeptAnalytics, markAsSeen } = require('../controllers/hodController');
 const { protect } = require('../middleware/authMiddleware');
 const { authorize } = require('../middleware/roleMiddleware');
 
